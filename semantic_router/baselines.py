@@ -42,7 +42,7 @@ class OpenRouterTriage:
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0,
-            "max_tokens": 100,
+            "max_tokens": 300,
             "response_format": {"type": "json_object"},
         }
         headers = {"Authorization": f"Bearer {self.api_key}"}
@@ -67,7 +67,21 @@ class OpenRouterTriage:
         else:
             raise RuntimeError(f"openrouter failed after retries: {last_exc}")
         latency = (time.perf_counter() - t0) * 1000
-        content = resp.json()["choices"][0]["message"]["content"]
+        content = resp.json()["choices"][0]["message"].get("content")
+        if not content:
+            # reasoning models can burn the token budget on <think> and emit nothing
+            raise RuntimeError(f"{self.model}: empty completion (max_tokens=100 exhausted or filtered)")
+        # strip markdown fences some models wrap around JSON
+        content = content.strip()
+        if content.startswith("```"):
+            content = content.split("```")[1]
+            if content.startswith("json"):
+                content = content[4:]
+        # salvage the first {...} block if there is prose around it
+        if not content.lstrip().startswith("{"):
+            start, end = content.find("{"), content.rfind("}")
+            if start != -1 and end > start:
+                content = content[start : end + 1]
         d = json.loads(content)
         urgency = max(0, min(3, int(d.get("urgency", 0))))
         return {
