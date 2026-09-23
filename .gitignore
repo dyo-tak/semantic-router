@@ -1,0 +1,12 @@
+# Git artifacts
+*.pyc
+__pycache__/
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# 1.7 GB ONNX bundle — downloaded via `python -m semantic_router.download`
+models/
+
+# Env
+.env
