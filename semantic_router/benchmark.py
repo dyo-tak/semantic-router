@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import statistics
+import time
 from pathlib import Path
 
 from .dataset import LabeledTicket, load_labeled
@@ -42,11 +43,11 @@ def laya_metrics(engine: TriageEngine, tickets: list[LabeledTicket]) -> dict:
     return _pack(lat, calls, len(tickets), q_ok, urg_err)
 
 
-def openrouter_metrics(baseline, tickets: list[LabeledTicket]) -> dict:
-    from .baselines import OpenRouterTriage  # noqa: F401  (typing only)
-
+def openrouter_metrics(baseline, tickets: list[LabeledTicket], pace_s: float = 3.5) -> dict:
     lat, q_ok, urg_err = [], 0, []
-    for t in tickets:
+    for i, t in enumerate(tickets):
+        if i:
+            time.sleep(pace_s)  # stay under :free per-minute rate limits
         d = baseline.triage(t)
         lat.append(d["latency_ms"])
         q_ok += int(d["queue"] == t.queue)

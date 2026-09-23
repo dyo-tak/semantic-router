@@ -30,7 +30,11 @@ ROUND4 = lambda x: round(x, 4)  # noqa: E731
 
 
 class LayaEngine:
-    def __init__(self, model_dir: str | Path, intra_op_threads: int = 4):
+    def __init__(self, model_dir: str | Path | None = None, intra_op_threads: int = 4):
+        if model_dir is None:
+            from ..download import DEFAULT_DIR
+
+            model_dir = DEFAULT_DIR
         self.model_dir = Path(model_dir)
         cfg_path = self.model_dir / "laya_config.json"
         if not cfg_path.exists():
