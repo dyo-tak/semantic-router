@@ -38,22 +38,50 @@ class OpenRouterTriage:
             "body": ticket.body,
             "tier": ticket.customer_tier,
         }
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0,
+            "max_tokens": 300,
+            "response_format": {"type": "json_object"},
+        }
+        headers = {"Authorization": f"Bearer {self.api_key}"}
         t0 = time.perf_counter()
-        resp = httpx.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={"Authorization": f"Bearer {self.api_key}"},
-            json={
-                "model": self.model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0,
-                "max_tokens": 100,
-                "response_format": {"type": "json_object"},
-            },
-            timeout=60,
-        )
+        last_exc: Exception | None = None
+        for attempt in range(4):
+            try:
+                resp = httpx.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=60,
+                )
+                resp.raise_for_status()
+                break
+            except (httpx.HTTPStatusError, httpx.TransportError) as e:
+                last_exc = e
+                status = getattr(getattr(e, "response", None), "status_code", None)
+                if status not in (429, 500, 502, 503, 520) and not isinstance(e, httpx.TransportError):
+                    raise
+                time.sleep(2.0 * (2**attempt) + 1.0)  # 3s, 5s, 9s backoff
+        else:
+            raise RuntimeError(f"openrouter failed after retries: {last_exc}")
         latency = (time.perf_counter() - t0) * 1000
-        resp.raise_for_status()
-        content = resp.json()["choices"][0]["message"]["content"]
+        content = resp.json()["choices"][0]["message"].get("content")
+        if not content:
+            # reasoning models can burn the token budget on <think> and emit nothing
+            raise RuntimeError(f"{self.model}: empty completion (max_tokens=100 exhausted or filtered)")
+        # strip markdown fences some models wrap around JSON
+        content = content.strip()
+        if content.startswith("```"):
+            content = content.split("```")[1]
+            if content.startswith("json"):
+                content = content[4:]
+        # salvage the first {...} block if there is prose around it
+        if not content.lstrip().startswith("{"):
+            start, end = content.find("{"), content.rfind("}")
+            if start != -1 and end > start:
+                content = content[start : end + 1]
         d = json.loads(content)
         urgency = max(0, min(3, int(d.get("urgency", 0))))
         return {

@@ -1,0 +1,26 @@
+[
+  {
+    "system": "laya (on-device)",
+    "n": 36,
+    "queue_accuracy": 0.444,
+    "urgency_mae": 0.721,
+    "llm_calls": 0,
+    "llm_call_rate": 0.0,
+    "latency_ms": {
+      "median": 3746.7,
+      "p95": 4058.3
+    }
+  },
+  {
+    "system": "openrouter (nex-agi/nex-n2.5-mini:free)",
+    "n": 36,
+    "queue_accuracy": 0.75,
+    "urgency_mae": 0.472,
+    "llm_calls": 36,
+    "llm_call_rate": 1.0,
+    "latency_ms": {
+      "median": 2971.1,
+      "p95": 13318.5
+    }
+  }
+]
